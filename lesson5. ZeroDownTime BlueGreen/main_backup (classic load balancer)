@@ -1,0 +1,187 @@
+provider "aws" {
+  region = "us-east-1"
+}
+
+#read availability zones
+data "aws_availability_zones" "available_zones" {}
+#search for latest ubuntu image
+data "aws_ami" "latest_ubuntu" {
+  owners = ["amazon"]
+  most_recent = true #latest
+  #filter all images with owner "amazon" by name that below
+  filter {
+    name = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64*"] #part of the AMI-name
+  }
+}
+
+#какую VPC будем искать (по тегу)
+variable "name_of_VPC" {
+  type = string
+  default = "10.0.x.x-main"
+}
+data "aws_vpc" "searchingVPC" {
+  #filter for VPC results
+  tags = {
+    Name = var.name_of_VPC
+  }
+}
+#находим external subnets в искомой сети VPC по тегу
+data "aws_subnets" "ext_subnet" {
+  filter {
+    name = "vpc-id"
+    #values = ["vpc-0465e4ae2df3296b3"]
+    values = [data.aws_vpc.searchingVPC.id]
+  }
+  filter {
+    name = "tag:Name"
+    values = ["*external*"]
+  }
+}
+
+#create security group
+resource "aws_security_group" "security_group1_skiff" {
+  name        = "Webserver SG skiff"
+  description = "SSH+HTTP+HTTPS"
+  vpc_id      = data.aws_vpc.searchingVPC.id #vpc-0465e4ae2df3296b3 - 10.0.x.x-main
+
+  #inbound
+  dynamic "ingress" {
+    for_each = ["443", "22", "80","1488"]
+    content {
+      from_port   = ingress.value
+      to_port     = ingress.value
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  }
+
+  ingress {
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["10.10.0.0/16"]
+  }
+
+  #outbound
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1" #all the protocols
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name    = "from_terraform_skiff"
+    Creator = var.owner_or_creator_name
+  }
+}
+
+#create launch configuration
+resource "aws_launch_configuration" "simple_webserver" {
+  name = "terraform_skiff"
+  image_id = data.aws_ami.latest_ubuntu.id
+  instance_type = "t3.nano"
+  security_groups = [aws_security_group.security_group1_skiff.id]
+  user_data = templatefile("user_data.sh.tpl", {
+    f_name = "Skiff" #использование переменной ${f_name}
+    l_name = "Family"
+    names  = ["Vasya", "Kolya", "Petya", "Masha"]
+  })
+}
+
+resource "aws_autoscaling_group" "simple_autoscale" {
+  name                      = "terraform_skiff"
+  max_size                  = 5
+  desired_capacity          = 3
+  min_size                  = 2
+  #min_elb_capacity          = 2
+  #health_check_grace_period = 300
+  health_check_type         = "ELB"
+  #force_delete              = true
+  #placement_group           = aws_placement_group.test.id
+  launch_configuration      = aws_launch_configuration.simple_webserver.name
+  #vpc_zone_identifier       = [aws_default_subnet.default_az1.id, aws_default_subnet.default_az2.id]
+  vpc_zone_identifier       = data.aws_subnets.ext_subnet.ids
+ 
+  load_balancers            = [aws_elb.simple_elb.name]
+  
+  # #variant1 to place the tags
+  # tags = [
+  #   {
+  #     key = "Name"
+  #     value = "terraform_skiff_server"
+  #     propagate_at_launch = true
+  #   },
+  #   {
+  #     key = "Owner"
+  #     value = var.owner_or_creator_name
+  #     propagate_at_launch = true
+  #   },
+  # ]
+
+  #variant2 to place the tags (dynamic)
+  dynamic "tag" {
+    for_each = {
+      Name = "terraform_skiff_server"
+      Owner = var.owner_or_creator_name
+      TAGKEY = "TAGVALUE"
+    }
+    content {
+      key = tag.key
+      value = tag.value
+      propagate_at_launch = true
+    }
+  }
+
+#   initial_lifecycle_hook {
+#     name                 = "foobar"
+#     default_result       = "CONTINUE"
+#     heartbeat_timeout    = 2000
+#     lifecycle_transition = "autoscaling:EC2_INSTANCE_LAUNCHING"
+
+#     notification_metadata = <<EOF
+# {
+#   "foo": "bar"
+# }
+# EOF
+
+#     notification_target_arn = "arn:aws:sqs:us-east-1:444455556666:queue1*"
+#     role_arn                = "arn:aws:iam::123456789012:role/S3Access"
+#   }
+  
+}
+
+#classic load balancer
+resource "aws_elb" "simple_elb" {
+  name = "terraform-ELB"
+  #load_balancer_type = "application"
+  #availability_zones = [data.aws_availability_zones.available_zones.names[0], data.aws_availability_zones.available_zones.names[1]]  
+  subnets = ["subnet-04c66bc3225e9a67a","subnet-077130cf09bf07223","subnet-01c47cbd72186f1f3"]
+  security_groups = [aws_security_group.security_group1_skiff.id]
+  
+  listener {
+    lb_port = 80
+    lb_protocol = "http"
+    instance_port = 80
+    instance_protocol = "http"
+  }
+  health_check {
+    healthy_threshold = 2
+    unhealthy_threshold = 2
+    timeout = 3
+    target = "HTTP:80/"
+    interval = 10
+  }
+  tags = {
+    Name = "terraform-elb-skiff"
+    Creator = var.owner_or_creator_name
+  }
+}
+
+
+
+
+output "web_loadbalancer_url" {
+  value = aws_elb.simple_elb.dns_name
+}
