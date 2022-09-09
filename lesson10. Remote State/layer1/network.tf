@@ -7,6 +7,16 @@ terraform {
   }
 }
 
+provider "aws" {
+  default_tags {
+    tags = {
+      Learning = "Terraform"
+      Owner = "yaroslav.gankov"
+      Creator = "yaroslav.gankov"
+    }
+  }
+}
+
 #DATA
 #read availability zones in our region. It is need for attaching different AZ to subnets
 data "aws_availability_zones" "available_zones" {
@@ -18,8 +28,8 @@ resource "aws_vpc" "skiff_vpc" {
     cidr_block = var.vpc_cidr
     tags = {
         Name = "test-TerForm-skiff-${var.env}"
-        owner = "yaroslav.gankov"
-        learning = "Terraform"
+        # owner = "yaroslav.gankov"
+        # learning = "Terraform"
     }
 }
 resource "aws_internet_gateway" "main_gateway" {
@@ -33,8 +43,8 @@ resource "aws_subnet" "public_subnets" {
     map_public_ip_on_launch = true
     tags = {
         Name = "test-TerForm-skiff-${var.env}"
-        creator = "yaroslav.gankov"
-        learning = "Terraform"
+        # creator = "yaroslav.gankov"
+        # learning = "Terraform"
     }
 }
 resource "aws_route_table" "public_subnets" {
@@ -45,8 +55,8 @@ resource "aws_route_table" "public_subnets" {
     }
     tags = {
         Name = "test-TerForm-skiff-${var.env}"
-        creator = "yaroslav.gankov"
-        learning = "Terraform"
+        # creator = "yaroslav.gankov"
+        # learning = "Terraform"
     }
 }
 

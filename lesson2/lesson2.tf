@@ -11,6 +11,14 @@ terraform {
 
 provider "aws" {
   region = "us-east-1"
+  
+  default_tags {
+    tags = {
+      Learning = "Terraform"
+      Owner = "yaroslav.gankov"
+      Creator = "yaroslav.gankov"
+    }
+  }
 }
 
 #resource with user data from file-template
@@ -20,7 +28,7 @@ resource "aws_instance" "instance-dynamic" {
   instance_type = "t3.nano"
   #subnet_id и security group нужно указывать, если нет default VPC в указанном регионе
   vpc_security_group_ids = [aws_security_group.security_group1_skiff.id]
-  subnet_id              = "subnet-0fad79be175865aa3"
+  subnet_id              = "subnet-04c66bc3225e9a67a"
   tags = {
     Name  = "terraform4-skiff"
     Owner = var.owner_or_creator_name #using variable "owner_or_creator_name" from file "variables.tf"
@@ -34,15 +42,15 @@ resource "aws_instance" "instance-dynamic" {
   })
 }
 
-#allocate and bind Elastic IP Address
-resource "aws_eip" "skiff_static_ip" {
-  instance = aws_instance.instance-dynamic.id
-}
+# #allocate and bind Elastic IP Address
+# resource "aws_eip" "skiff_static_ip" {
+#   instance = aws_instance.instance-dynamic.id
+# }
 
 resource "aws_security_group" "security_group1_skiff" {
   name        = "Webserver SG skiff"
   description = "SSH+HTTP+HTTPS"
-  vpc_id      = "vpc-0f6aa5d4c120a0c42"
+  vpc_id      = "vpc-0465e4ae2df3296b3"
 
   #inbound
   dynamic "ingress" {

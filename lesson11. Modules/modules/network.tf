@@ -77,7 +77,6 @@ resource "aws_route_table_association" "public_routes_skiff" {
     subnet_id = element(aws_subnet.public_subnets[*].id, count.index)
 }
 
-
 #OUTPUT
 #outputs needs for communication with others developers
 output "vpc_id" {

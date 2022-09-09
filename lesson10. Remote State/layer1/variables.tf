@@ -1,4 +1,5 @@
 #VARIABLES for VPC
+
 variable "vpc_cidr" {
     default = "10.173.0.0/16"
 }
